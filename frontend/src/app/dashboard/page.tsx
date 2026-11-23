@@ -1,17 +1,13 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import axios from "axios";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, CheckCircle2, XCircle, Loader2, GitBranch, LogOut, User, ChevronRight, Timer, RefreshCw, ArrowUpRight, Play, AlertCircle, GitPullRequest, ExternalLink, Link as LinkIcon } from "lucide-react";
+import { Search, GitBranch, ChevronRight, Timer, RefreshCw, ArrowUpRight, Play, GitPullRequest, ExternalLink, Loader2, Link as LinkIcon } from "lucide-react";
+import { Header } from "@/components/header";
+import { button, card, field, focusRing } from "@/components/gb";
+import { MarkStatus, StatusMark } from "@/components/status-mark";
 import { PRSuccessAlertDialog } from "../../components/dashboard/PRSuccessDialog";
 import { CreatePRDialog } from "../../components/dashboard/CreatePRDialog";
 import { BuildLogTerminal } from "../../components/dashboard/build-log-terminal";
@@ -390,8 +386,8 @@ export default function Dashboard() {
   // Show loading only if not in URL flow and auth is loading
   if (status === "loading" && !isUrlFlow) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-(--gb-bg)">
+        <Loader2 className="size-5 animate-spin text-(--gb-text-3)" strokeWidth={1.5} />
       </div>
     );
   }
@@ -399,131 +395,66 @@ export default function Dashboard() {
   // Allow URL flow to proceed without session
   if (!session && !isUrlFlow) return null;
 
+  const languageLabel = inputMode === "url" ? selectedLanguage : mapLanguage(selectedRepo?.language ?? null);
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-50 glass-nav">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="relative">
-              <Image src="/logo.png" alt="GreenBranch" width={28} height={28} className="h-7 w-7 transition-transform duration-300 group-hover:scale-110" />
-              <div className="absolute inset-0 rounded-full bg-primary/20 blur-md opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-            </div>
-            <span className="text-sm font-semibold text-foreground">GreenBranch</span>
-          </Link>
+    <div className="min-h-screen bg-(--gb-bg) text-(--gb-text)">
+      <Header />
 
-          <div className="flex items-center gap-3">
-            {phase === "streaming" && (
-              <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                </span>
-                <span className="font-mono text-xs text-primary">{formatTime(elapsedTime)}</span>
-              </div>
-            )}
-
-            {session ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
-                    <Avatar className="h-8 w-8 ring-2 ring-primary/20 ring-offset-1 ring-offset-background transition-all hover:ring-primary/40">
-                      <AvatarImage src={session.user?.image || ""} alt={session.user?.name || "User"} />
-                      <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                        {session.user?.name?.charAt(0).toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 glass-card rounded-xl border-border/50 overflow-hidden">
-                  <div className="px-3 py-3 bg-primary/5 border-b border-border/50">
-                    <p className="text-sm font-semibold text-foreground leading-tight">{session.user?.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{session.user?.email}</p>
-                  </div>
-                  <div className="p-1">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center gap-2 rounded-lg">
-                        <User className="h-3.5 w-3.5" /> Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                  </div>
-                  <div className="p-1 pt-0">
-                    <DropdownMenuItem
-                      onClick={() => signOut({ callbackUrl: "/" })}
-                      className="flex items-center gap-2 rounded-lg font-medium bg-destructive/10 text-destructive hover:!bg-destructive hover:!text-destructive-foreground focus:bg-destructive focus:text-destructive-foreground transition-colors"
-                    >
-                      <LogOut className="h-3.5 w-3.5" /> Sign out
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Link href="/signin">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <GitHubIcon className="h-4 w-4" /> Sign in
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         {/* ─────────── IDLE ─────────── */}
         {phase === "idle" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Projects</h1>
-                <p className="text-sm text-muted-foreground">Pick a repository or paste its URL to start the AI healing pipeline.</p>
-              </div>
-            </div>
+            <PageTitle
+              title="Projects"
+              subtitle="Pick a repository or paste its URL to run its tests and fix what fails"
+            />
 
-            {/* Repository URL Input — always visible (URL mode is the primary flow) */}
-            <div className="glass-card rounded-2xl p-6 space-y-5">
-              <div className="flex items-center gap-2 border-b border-border/50 pb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                  <LinkIcon className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">Repository</p>
-                  <p className="text-xs text-muted-foreground">Paste the full GitHub URL to analyze</p>
+            <div className={`${card} p-6`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-[15px] font-medium">Repository</h2>
+                  <p className="mt-1 text-[13px] text-(--gb-text-2)">
+                    {inputMode === "select" ? "Choose one of your GitHub repositories" : "Paste the full GitHub URL"}
+                  </p>
                 </div>
                 {/* GitHub repos toggle — only for authenticated users */}
                 {session && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => setInputMode(inputMode === "select" ? "url" : "select")}
-                    className="gap-2 h-8 text-xs border border-border/60 hover:border-primary/40 hover:bg-primary/5"
+                    className={button("secondary", "sm")}
                   >
-                    <GitHubIcon className="h-3.5 w-3.5" />
-                    {inputMode === "select" ? "Enter URL" : "My Repos"}
-                  </Button>
+                    {inputMode === "select" ? <LinkIcon strokeWidth={1.5} /> : <GitHubIcon className="size-4" />}
+                    {inputMode === "select" ? "Enter URL" : "My repositories"}
+                  </button>
                 )}
               </div>
 
               {inputMode === "select" ? (
                 /* GitHub repos picker */
-                <div className="space-y-4">
+                <div className="mt-6 space-y-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search repositories…"
+                    <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-(--gb-text-3)" strokeWidth={1.5} />
+                    <input
+                      placeholder="Search"
+                      aria-label="Search repositories"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-secondary/30 pl-9"
+                      className={`${field} pl-9`}
                     />
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 max-h-96 overflow-y-auto pr-1">
+                  <div className="grid max-h-96 gap-3 overflow-y-auto sm:grid-cols-2">
                     {loading ? (
                       Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="animate-pulse"><RepoCardSkeleton /></div>
+                        <div key={i} className="animate-pulse">
+                          <RepoCardSkeleton />
+                        </div>
                       ))
                     ) : filteredRepos.length === 0 ? (
-                      <div className="col-span-2 py-12 text-center text-sm text-muted-foreground">
+                      <p className="py-12 text-center text-sm text-(--gb-text-2) sm:col-span-2">
                         {searchQuery ? "No repositories match your search" : "No repositories found"}
-                      </div>
+                      </p>
                     ) : (
                       filteredRepos.map((repo) => (
                         <RepoCard
@@ -537,72 +468,64 @@ export default function Dashboard() {
                     )}
                   </div>
                   {selectedRepo && (
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 flex-1 min-w-0">
-                        <GitBranch className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <code className="text-xs font-medium text-primary truncate">
-                          {getBranchPreview(selectedRepo.name)}
-                        </code>
-                      </div>
-                      <Button
-                        onClick={handleClone}
-                        disabled={!selectedRepo}
-                        className="gap-2 shrink-0 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_rgba(74,222,128,0.2)]"
-                      >
-                        Run GreenBranch <ChevronRight className="h-4 w-4" />
-                      </Button>
+                    <div className="flex flex-col gap-3 border-t border-(--gb-line) pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <BranchNote name={selectedRepo.name} />
+                      <button type="button" onClick={handleClone} disabled={!selectedRepo} className={button("primary")}>
+                        Run GreenBranch
+                        <ChevronRight strokeWidth={1.5} />
+                      </button>
                     </div>
                   )}
                 </div>
               ) : (
                 /* URL input mode */
-                <div className="space-y-4">
-                  {/* URL + Run button on same row */}
-                  <div className="flex items-center gap-2">
+                <div className="mt-6 space-y-6">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <div className="relative flex-1">
-                      <LinkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
+                      <LinkIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-(--gb-text-3)" strokeWidth={1.5} />
+                      <input
                         placeholder="https://github.com/username/repository"
+                        aria-label="Repository URL"
                         value={repoUrl}
                         onChange={(e) => setRepoUrl(e.target.value)}
-                        className="bg-secondary/30 font-mono text-sm pl-10 pr-3"
+                        className={`${field} pl-9 font-mono`}
                         spellCheck={false}
                       />
                     </div>
-                    <Button
-                      onClick={handleClone}
-                      disabled={!repoUrl.trim()}
-                      className="shrink-0 gap-2 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_rgba(74,222,128,0.2)] whitespace-nowrap"
-                    >
-                      <Play className="h-4 w-4" /> Run GreenBranch
-                    </Button>
+                    <button type="button" onClick={handleClone} disabled={!repoUrl.trim()} className={button("primary")}>
+                      <Play strokeWidth={1.5} />
+                      Run GreenBranch
+                    </button>
                   </div>
 
-                  {/* Language Selector */}
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Project Language</label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={selectedLanguage === "nodejs" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedLanguage("nodejs")}
-                        className="flex-1 text-xs"
-                      >
-                        JavaScript / TypeScript
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={selectedLanguage === "python" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedLanguage("python")}
-                        className="flex-1 text-xs"
-                      >
-                        Python
-                      </Button>
+                    <p id="language-label" className="text-[13px] text-(--gb-text-2)">Language</p>
+                    <div
+                      role="radiogroup"
+                      aria-labelledby="language-label"
+                      className="inline-flex rounded-[10px] bg-(--gb-raised) p-1"
+                    >
+                      {LANGUAGES.map((lang) => {
+                        const active = selectedLanguage === lang.value;
+                        return (
+                          <button
+                            key={lang.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setSelectedLanguage(lang.value)}
+                            className={`h-7 rounded-md px-3 text-[13px] transition-colors duration-150 ${focusRing} ${
+                              active
+                                ? "bg-(--gb-card) text-(--gb-text) shadow-[0_0_0_1px_var(--gb-line)]"
+                                : "text-(--gb-text-2) hover:text-(--gb-text)"
+                            }`}
+                          >
+                            {lang.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-
                 </div>
               )}
             </div>
@@ -612,58 +535,63 @@ export default function Dashboard() {
         {/* ─────────── CONFIGURE ─────────── */}
         {phase === "configure" && selectedRepo && (
           <div className="space-y-6">
-            {/* Header: title + Run CI button top-right */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">Repository cloned</h1>
-                </div>
-                <p className="text-sm text-muted-foreground">{selectedRepo.full_name}</p>
+            <PageTitle
+              mark="passed"
+              title="Repository cloned"
+              subtitle={<span className="font-mono">{selectedRepo.full_name}</span>}
+              actions={
+                <>
+                  <button type="button" onClick={resetAnalysis} className={button("ghost")}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecute}
+                    disabled={!installCommand.trim() || !testCommand.trim()}
+                    className={button("primary")}
+                  >
+                    <Play strokeWidth={1.5} />
+                    Run tests
+                  </button>
+                </>
+              }
+            />
+
+            <div className={`${card} p-6`}>
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="text-[15px] font-medium">Commands</h2>
+                <span className="font-mono text-[12px] text-(--gb-text-3)">{languageLabel}</span>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <Button
-                  onClick={handleExecute}
-                  disabled={!installCommand.trim() || !testCommand.trim()}
-                  className="gap-2 rounded-xl px-5 transition-all duration-300 hover:shadow-[0_0_20px_rgba(74,222,128,0.3)]"
-                >
-                  <Play className="h-4 w-4" /> Run CI
-                </Button>
-                <button onClick={resetAnalysis} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
-                  Cancel
-                </button>
+
+              <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="install-command" className="block text-[13px] font-medium">Install</label>
+                  <input
+                    id="install-command"
+                    value={installCommand}
+                    onChange={(e) => setInstallCommand(e.target.value)}
+                    placeholder="npm install"
+                    className={`${field} font-mono`}
+                    spellCheck={false}
+                  />
+                  <p className="text-[12px] text-(--gb-text-3)">Installs the project dependencies</p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="test-command" className="block text-[13px] font-medium">Test</label>
+                  <input
+                    id="test-command"
+                    value={testCommand}
+                    onChange={(e) => setTestCommand(e.target.value)}
+                    placeholder="npm test"
+                    className={`${field} font-mono`}
+                    spellCheck={false}
+                  />
+                  <p className="text-[12px] text-(--gb-text-3)">Runs your test suite</p>
+                </div>
               </div>
             </div>
 
-            <div className="glass-card space-y-5 rounded-2xl p-6">
-              <div className="flex items-center gap-2 border-b border-border/50 pb-4">
-                <p className="text-sm font-medium text-foreground">Configure commands</p>
-                <span className="ml-auto rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-xs text-primary">
-                  {inputMode === "url" ? selectedLanguage : mapLanguage(selectedRepo.language ?? null)}
-                </span>
-              </div>
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">Install command</label>
-                  <p className="text-xs text-muted-foreground">Install project dependencies</p>
-                  <Input value={installCommand} onChange={(e) => setInstallCommand(e.target.value)} placeholder="npm install" className="mt-1 font-mono text-sm bg-secondary/30" spellCheck={false} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">Test command</label>
-                  <p className="text-xs text-muted-foreground">Run your test suite</p>
-                  <Input value={testCommand} onChange={(e) => setTestCommand(e.target.value)} placeholder="npm test" className="mt-1 font-mono text-sm bg-secondary/30" spellCheck={false} />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-              <GitBranch className="h-3.5 w-3.5 shrink-0 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Verified fixes are committed to a new branch</p>
-                <code className="text-xs font-medium text-primary">{getBranchPreview(selectedRepo.name)}</code>
-              </div>
-            </div>
+            <BranchNote name={selectedRepo.name} />
 
             {logs.length > 0 && <BuildLogTerminal logs={logs} isStreaming={false} />}
           </div>
@@ -672,50 +600,41 @@ export default function Dashboard() {
         {/* ─────────── STREAMING ─────────── */}
         {phase === "streaming" && selectedRepo && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                  </span>
-                  <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                    Deploying fixes &mdash; {selectedRepo.name}
-                  </h1>
-                </div>
-                <p className="text-sm text-muted-foreground">GreenBranch is autonomously healing your repository.</p>
-              </div>
-              <div className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
-                <Timer className="h-4 w-4" />
-                {formatTime(elapsedTime)}
-              </div>
-            </div>
+            <PageTitle
+              mark="running"
+              title={selectedRepo.name}
+              subtitle="Running tests and fixing failures"
+              actions={
+                <span className="flex items-center gap-2 font-mono text-sm text-(--gb-text-2) tabular-nums">
+                  <Timer className="size-4 text-(--gb-text-3)" strokeWidth={1.5} />
+                  {formatTime(elapsedTime)}
+                </span>
+              }
+            />
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="min-w-0">
                 <BuildLogTerminal logs={logs} isStreaming={true} />
               </div>
               <div className="space-y-4">
-                <div className="glass-card rounded-2xl p-4">
-                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-primary/70">Pipeline Steps</p>
+                <div className={`${card} p-4`}>
+                  <h2 className="mb-2 px-2 text-[13px] font-medium">Steps</h2>
                   <StepTracker steps={steps} />
                 </div>
                 {fixes.length > 0 && (
-                  <div className="rounded-lg border border-border bg-card p-4">
-                    <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Fixes ({fixes.length})</p>
-                    <div className="space-y-2">
+                  <div className={`${card} p-4`}>
+                    <h2 className="mb-2 flex items-baseline justify-between px-2 text-[13px] font-medium">
+                      Fixes
+                      <span className="font-mono text-[12px] font-normal text-(--gb-text-3) tabular-nums">{fixes.length}</span>
+                    </h2>
+                    <ul className="space-y-1">
                       {fixes.map((fix, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          {/* FileCode icon is now handled in FixCard component */}
-                          <span className="truncate font-mono text-foreground">{fix.file}</span>
-                          {fix.status === "fixed" ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          ) : (
-                            <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                          )}
-                        </div>
+                        <li key={i} className="flex h-8 items-center gap-2 px-2">
+                          <StatusMark status={fix.status === "fixed" ? "passed" : "failed"} size="sm" />
+                          <span className="truncate font-mono text-[12px] text-(--gb-text-2)">{fix.file}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 )}
               </div>
@@ -726,154 +645,102 @@ export default function Dashboard() {
         {/* ─────────── FAILED ─────────── */}
         {phase === "failed" && (
           <div className="space-y-6">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                {failedStep === "cloning" ? "Could not clone repository" : "Pipeline failed"}
-              </h1>
-              <p className="text-sm text-muted-foreground">{selectedRepo?.full_name || repoUrl}</p>
-            </div>
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 backdrop-blur-sm">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                </div>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {(() => {
-                      const msg = errorMessage ?? "";
-                      if (msg.includes("private") || msg.includes("🔒")) return "Private repository";
-                      if (msg.includes("not found") || msg.includes("❌")) return "Repository not found";
-                      if (msg.includes("empty") || msg.includes("📭")) return "Repository is empty";
-                      if (msg.includes("Branch") || msg.includes("🌿")) return "Branch not found";
-                      if (msg.includes("Network") || msg.includes("🌐")) return "Network error";
-                      if (msg.includes("No test files") || msg.includes("test_*.py")) return "No test files found";
-                      if (failedStep === "cloning") return "Repository could not be cloned";
-                      return "Execution could not be completed";
-                    })()}
-                  </p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {errorMessage?.replace(/^[🔒❌📭🌿🌐]\s*/, "") ?? "An unknown error occurred."}
-                  </p>
-                </div>
+            <PageTitle
+              title={failedStep === "cloning" ? "Could not clone repository" : "Run failed"}
+              subtitle={<span className="font-mono">{selectedRepo?.full_name || repoUrl}</span>}
+              actions={
+                <button type="button" onClick={resetAnalysis} className={button("secondary")}>
+                  <RefreshCw strokeWidth={1.5} />
+                  Try again
+                </button>
+              }
+            />
+            <div className={`${card} flex items-start gap-3 p-6`}>
+              <StatusMark status="failed" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-[15px] font-medium">
+                  {(() => {
+                    const msg = errorMessage ?? "";
+                    if (msg.includes("private") || msg.includes("🔒")) return "Private repository";
+                    if (msg.includes("not found") || msg.includes("❌")) return "Repository not found";
+                    if (msg.includes("empty") || msg.includes("📭")) return "Repository is empty";
+                    if (msg.includes("Branch") || msg.includes("🌿")) return "Branch not found";
+                    if (msg.includes("Network") || msg.includes("🌐")) return "Network error";
+                    if (msg.includes("No test files") || msg.includes("test_*.py")) return "No test files found";
+                    if (failedStep === "cloning") return "Repository could not be cloned";
+                    return "The run could not finish";
+                  })()}
+                </p>
+                <p className="text-sm leading-relaxed text-(--gb-text-2)">
+                  {errorMessage?.replace(/^[🔒❌📭🌿🌐]\s*/, "") ?? "An unknown error occurred."}
+                </p>
               </div>
             </div>
             {logs.length > 0 && <BuildLogTerminal logs={logs} isStreaming={false} />}
-            <Button variant="outline" onClick={resetAnalysis} className="gap-2 text-sm">
-              <RefreshCw className="h-3.5 w-3.5" /> Try again
-            </Button>
           </div>
         )}
 
         {/* ─────────── DONE ─────────── */}
         {phase === "done" && selectedRepo && (
           <div className="space-y-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Pipeline complete</h1>
-                <p className="text-sm text-muted-foreground">{selectedRepo.full_name}</p>
-              </div>
-              <Badge variant={finalResult?.passed ? "default" : "destructive"} className="text-sm px-3 py-1">
-                {finalResult?.passed ? (
-                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />All Tests Passing</span>
-                ) : (
-                  <span className="flex items-center gap-1.5"><XCircle className="h-3.5 w-3.5" />Tests Failing</span>
-                )}
-              </Badge>
-            </div>
+            <PageTitle
+              mark={finalResult?.passed ? "passed" : "failed"}
+              title={finalResult?.passed ? "All tests passing" : "Tests still failing"}
+              subtitle={
+                <a
+                  href={selectedRepo.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`rounded font-mono hover:text-(--gb-text) ${focusRing}`}
+                >
+                  {selectedRepo.full_name}
+                </a>
+              }
+            />
 
-            {/* Run Summary Card */}
-            <div className="glass-card rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-2 border-b border-border/50 pb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                  <GitHubIcon className="h-4 w-4 text-primary" />
+            {/* Run summary */}
+            <div className={`${card} grid grid-cols-2 sm:grid-cols-4`}>
+              {[
+                { label: "Failures found", value: finalResult?.total_failures ?? 0 },
+                { label: "Fixes applied", value: finalResult?.total_fixed ?? 0 },
+                {
+                  label: "Test runs",
+                  value: finalResult?.iterations ?? 0,
+                  of: maxIterations,
+                },
+                {
+                  label: "Time taken",
+                  value: finalResult?.time_taken_seconds
+                    ? formatTime(Math.round(finalResult.time_taken_seconds))
+                    : "0:00",
+                },
+              ].map((stat, i) => (
+                <div
+                  key={stat.label}
+                  className={`p-6 ${i % 2 === 1 ? "border-l border-(--gb-line)" : ""} ${
+                    i >= 2 ? "border-t border-(--gb-line) sm:border-t-0" : ""
+                  } ${i === 2 ? "sm:border-l" : ""}`}
+                >
+                  <p className="text-[13px] text-(--gb-text-2)">{stat.label}</p>
+                  <p className="mt-2 text-[28px] leading-none font-medium tabular-nums">
+                    {stat.value}
+                    {stat.of !== undefined && (
+                      <span className="text-[15px] font-normal text-(--gb-text-3)"> of {stat.of}</span>
+                    )}
+                  </p>
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">Run Summary</h3>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Repository</span>
-                    <a href={selectedRepo.html_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono text-xs truncate max-w-[200px]">
-                      {selectedRepo.full_name}
-                    </a>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {finalResult?.branch_name && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Branch Created</span>
-                      <code className="text-primary text-xs font-mono truncate max-w-[200px]">{finalResult.branch_name}</code>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Time Taken</span>
-                    <span className="text-foreground font-mono">
-                      {finalResult?.time_taken_seconds ? formatTime(Math.round(finalResult.time_taken_seconds)) : "0:00"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">CI/CD Status</span>
-                    <Badge variant={finalResult?.passed ? "default" : "destructive"} className="text-xs">
-                      {finalResult?.passed ? "PASSED" : "FAILED"}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="glass-card rounded-2xl p-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-destructive/10 border border-destructive/20">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                  </div>
-                  <span className="text-2xl font-bold text-foreground">{finalResult?.total_failures ?? 0}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Failures detected</p>
-              </div>
-              <div className="glass-card rounded-2xl p-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                  </div>
-                  <span className="text-2xl font-bold text-foreground">{finalResult?.total_fixed ?? 0}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Fixes applied</p>
-              </div>
-              <div className="glass-card rounded-2xl p-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                    <RefreshCw className="h-4 w-4 text-primary" />
-                  </div>
-                  <span className="text-2xl font-bold text-foreground">{finalResult?.iterations ?? 0}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Iterations used</p>
-              </div>
-              <div className="glass-card rounded-2xl p-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-muted/50 border border-border/50">
-                    <Timer className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <span className="text-2xl font-bold text-foreground">
-                    {finalResult?.time_taken_seconds ? formatTime(Math.round(finalResult.time_taken_seconds)) : "0:00"}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Time taken</p>
-              </div>
+              ))}
             </div>
 
             {finalResult?.branch_name && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3.5 backdrop-blur-sm">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
-                  <GitBranch className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Branch created</p>
-                  <code className="truncate text-xs font-medium text-primary">{finalResult.branch_name}</code>
-                </div>
+              <div className={`${card} flex flex-wrap items-center gap-x-3 gap-y-1 px-6 py-4`}>
+                <GitBranch className="size-4 shrink-0 text-(--gb-text-3)" strokeWidth={1.5} />
+                <span className="text-[13px] text-(--gb-text-2)">Fixes committed to</span>
+                <code className="min-w-0 truncate font-mono text-[13px]">{finalResult.branch_name}</code>
                 {finalResult.commit_hash && (
-                  <span className="ml-auto font-mono text-xs text-muted-foreground">{finalResult.commit_hash.slice(0, 8)}</span>
+                  <span className="ml-auto font-mono text-[12px] text-(--gb-text-3)">
+                    {finalResult.commit_hash.slice(0, 8)}
+                  </span>
                 )}
               </div>
             )}
@@ -883,8 +750,8 @@ export default function Dashboard() {
             {fixes.length > 0 && (
               <div className="space-y-3">
                 <div>
-                  <h2 className="text-sm font-medium text-foreground">Fixes Applied</h2>
-                  <p className="text-xs text-muted-foreground">What failed and how AI resolved each issue</p>
+                  <h2 className="text-[15px] font-medium">Fixes</h2>
+                  <p className="mt-1 text-[13px] text-(--gb-text-2)">What failed and how each issue was fixed</p>
                 </div>
                 <FixesTable fixes={fixes} />
               </div>
@@ -918,36 +785,78 @@ export default function Dashboard() {
               timeTaken={finalResult?.time_taken_seconds}
             />
 
-            {/* ── Persistent "View PR" button if PR exists ── */}
-            {finalResult?.passed && prUrl && (
-              <div className="flex justify-center mt-6">
-                <Button asChild className="gap-2 shadow-lg hover:shadow-primary/20 transition-all">
-                  <a href={prUrl} target="_blank" rel="noopener noreferrer">
-                    <GitPullRequest className="h-4 w-4" />
-                    View Pull Request
-                    <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                  </a>
-                </Button>
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <Button variant="outline" onClick={resetAnalysis} className="gap-2 text-sm">
-                <RefreshCw className="h-3.5 w-3.5" /> Run another analysis
-              </Button>
-              {finalResult?.branch_name && (
-                <Button asChild className="gap-2 text-sm">
-                  <a href={`${finalResult.repo_url}/tree/${finalResult.branch_name}`} target="_blank" rel="noopener noreferrer">
-                    <GitHubIcon className="h-3.5 w-3.5" />
+            <div className="flex flex-col gap-3 border-t border-(--gb-line) pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <button type="button" onClick={resetAnalysis} className={button("secondary")}>
+                <RefreshCw strokeWidth={1.5} />
+                Run another analysis
+              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {finalResult?.branch_name && (
+                  <a
+                    href={`${finalResult.repo_url}/tree/${finalResult.branch_name}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={button(finalResult.passed && prUrl ? "secondary" : "primary")}
+                  >
+                    <GitHubIcon className="size-4" />
                     View branch on GitHub
-                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    <ArrowUpRight strokeWidth={1.5} />
                   </a>
-                </Button>
-              )}
+                )}
+                {/* Persistent link once a PR exists */}
+                {finalResult?.passed && prUrl && (
+                  <a href={prUrl} target="_blank" rel="noopener noreferrer" className={button("primary")}>
+                    <GitPullRequest strokeWidth={1.5} />
+                    View pull request
+                    <ExternalLink strokeWidth={1.5} />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}
       </main>
     </div>
+  );
+}
+
+const LANGUAGES: { value: "nodejs" | "python"; label: string }[] = [
+  { value: "nodejs", label: "JavaScript / TypeScript" },
+  { value: "python", label: "Python" },
+];
+
+function PageTitle({
+  title,
+  subtitle,
+  mark,
+  actions,
+}: {
+  title: string;
+  subtitle: React.ReactNode;
+  mark?: MarkStatus;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-3">
+          {mark && <StatusMark status={mark} />}
+          <h1 className="truncate text-[28px] leading-tight font-medium tracking-[-0.02em]">{title}</h1>
+        </div>
+        <p className="mt-1 text-sm text-(--gb-text-2)">{subtitle}</p>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** Where verified fixes will land. */
+function BranchNote({ name }: { name: string }) {
+  return (
+    <p className="flex min-w-0 items-center gap-2 text-[13px] text-(--gb-text-2)">
+      <GitBranch className="size-4 shrink-0 text-(--gb-text-3)" strokeWidth={1.5} />
+      Verified fixes go to
+      <code className="truncate font-mono text-(--gb-text)">{getBranchPreview(name)}</code>
+    </p>
   );
 }

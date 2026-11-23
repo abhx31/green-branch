@@ -55,7 +55,7 @@
   --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 4px 6px -1px hsl(0 0% 0% / 0.17);
   --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 8px 10px -1px hsl(0 0% 0% / 0.17);
   --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.43);
-  --tracking-normal: 0.025em;
+  --tracking-normal: 0em;
   --spacing: 0.25rem;
 }
 
@@ -185,6 +185,64 @@ body {
   }
 }
 
+/* ── Landing palette ─────────────────────────────────────────────────── */
+/* Graphite neutrals; green only means "passed", red only means "failed" */
+
+:root {
+  --gb-bg: #fafafa;
+  --gb-card: #ffffff;
+  --gb-raised: #f4f4f5;
+  --gb-line: rgb(23 23 23 / 0.08);
+  --gb-line-strong: rgb(23 23 23 / 0.2);
+  --gb-text: #171717;
+  --gb-text-2: #525252;
+  --gb-text-3: #737373;
+  --gb-pass: #15803d;
+  --gb-pass-soft: rgb(22 163 74 / 0.1);
+  --gb-fail: #dc2626;
+  --gb-fail-soft: rgb(220 38 38 / 0.08);
+  --gb-btn: #171717;
+  --gb-btn-hover: #2a2a2a;
+  --gb-btn-text: #ffffff;
+  --gb-shadow: 0 8px 24px rgb(0 0 0 / 0.06);
+}
+
+.dark {
+  --gb-bg: #141415;
+  --gb-card: #19191b;
+  --gb-raised: #232325;
+  --gb-line: rgb(237 237 237 / 0.08);
+  --gb-line-strong: rgb(237 237 237 / 0.2);
+  --gb-text: #ededed;
+  --gb-text-2: #a1a1a6;
+  --gb-text-3: #85858b;
+  --gb-pass: #4cc38a;
+  --gb-pass-soft: rgb(76 195 138 / 0.12);
+  --gb-fail: #e5484d;
+  --gb-fail-soft: rgb(229 72 77 / 0.1);
+  --gb-btn: #ededed;
+  --gb-btn-hover: #ffffff;
+  --gb-btn-text: #141415;
+  --gb-shadow: none;
+}
+
+@keyframes gb-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.gb-rise {
+  animation: gb-rise 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.gb-rise-delay {
+  animation-delay: 60ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gb-rise { animation: none; }
+}
+
 /* ── Premium Animations ──────────────────────────────────────────────── */
 
 @keyframes aurora {
@@ -289,9 +347,10 @@ body {
 .stagger-4 { animation-delay: 0.4s; }
 .stagger-5 { animation-delay: 0.5s; }
 
-/* Premium scrollbar */
+/* Scrollbar: neutral, from the landing palette */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -299,10 +358,19 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--primary) 25%, transparent);
+  background: var(--gb-line-strong);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: var(--gb-text-3);
+}
+
+/* The build log stays dark in both themes */
+.gb-dark-scroll::-webkit-scrollbar-thumb {
+  background: rgb(237 237 237 / 0.2);
+}
+
+.gb-dark-scroll::-webkit-scrollbar-thumb:hover {
+  background: #85858b;
 }

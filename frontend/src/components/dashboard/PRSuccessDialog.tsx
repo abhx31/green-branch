@@ -2,30 +2,17 @@
 
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  CheckCircle2,
-  GitPullRequest,
-  GitBranch,
-  GitCommit,
-  FileCode,
-  ExternalLink,
-  Copy,
-  Check,
-  Sparkles,
-  Clock,
-  Zap,
-} from "lucide-react";
+import { GitPullRequest, ExternalLink, Copy, Check } from "lucide-react";
 import { useState } from "react";
 import { Fix } from "@/app/dashboard/types";
+import { StatusMark } from "../status-mark";
+import { button, iconButton } from "../gb";
+import { ChangesList, Facts, SectionLabel, dialogContent } from "./pr-dialog-parts";
 
 interface PRSuccessDialogProps {
   open: boolean;
@@ -50,7 +37,7 @@ export function PRSuccessAlertDialog({
 }: PRSuccessDialogProps) {
   const [copied, setCopied] = useState(false);
 
-  const fixedCount = fixes.filter((f) => f.status === "fixed").length;
+  const fixedFixes = fixes.filter((f) => f.status === "fixed");
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -64,182 +51,74 @@ export function PRSuccessAlertDialog({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Generate PR title from fixes
-  const prTitle = fixes.length > 0 && fixes[0].commit_message
-    ? `AI Fix: ${fixes[0].commit_message.split(":").pop()?.trim().slice(0, 50)}...`
-    : "AI Fix: Automated bug fixes";
+  const rows = [
+    ...(repoName ? [{ label: "Repository", value: <span className="font-mono">{repoName}</span> }] : []),
+    ...(branchName
+      ? [
+          {
+            label: "Branch",
+            value: (
+              <span className="flex items-center justify-end gap-1">
+                <code className="truncate font-mono">{branchName}</code>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(branchName)}
+                  className={iconButton}
+                  aria-label="Copy branch name"
+                >
+                  {copied ? <Check className="text-(--gb-pass)" /> : <Copy strokeWidth={1.5} />}
+                </button>
+              </span>
+            ),
+          },
+        ]
+      : []),
+    ...(commitHash
+      ? [{ label: "Commit", value: <code className="font-mono">{commitHash.slice(0, 8)}</code> }]
+      : []),
+    { label: "Fixes", value: <span className="tabular-nums">{fixedFixes.length}</span> },
+    {
+      label: "Time taken",
+      value: <span className="font-mono tabular-nums">{timeTaken ? formatTime(timeTaken) : "—"}</span>,
+    },
+  ];
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="sm:max-w-2xl border-primary/20 bg-card overflow-hidden max-h-[90vh] overflow-y-auto">
-        {/* Decorative background */}
-        <div className="absolute -top-20 -left-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-
-        <AlertDialogHeader className="relative">
-          {/* Success Icon */}
-          <div className="flex justify-center mb-4">
-            <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20">
-                <GitPullRequest className="h-10 w-10 text-primary" />
-              </div>
-              <div className="absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full bg-background ring-4 ring-background">
-                <CheckCircle2 className="h-6 w-6 text-green-500 fill-green-500/20" />
-              </div>
-            </div>
+      <AlertDialogContent className={dialogContent}>
+        <AlertDialogHeader className="space-y-2 text-left">
+          <div className="flex items-center gap-2">
+            <StatusMark status="passed" />
+            <AlertDialogTitle className="text-xl font-medium">Pull request opened</AlertDialogTitle>
           </div>
-
-          <AlertDialogTitle className="text-2xl text-center">
-            Pull Request Created Successfully!
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-center text-base">
-            Your AI-generated fixes have been committed and a PR has been raised for review.
+          <AlertDialogDescription className="text-sm text-(--gb-text-2)">
+            The verified fixes are committed and waiting for your review
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {/* PR Details Section */}
-        <div className="space-y-4 py-4">
-          {/* PR Title */}
-          <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Sparkles className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                  PR Title
-                </p>
-                <p className="text-sm font-medium text-foreground leading-relaxed">
-                  {prTitle}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="mt-6 space-y-6">
+          <Facts rows={rows} />
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-border/50 bg-secondary/20 p-3 text-center">
-              <div className="flex justify-center mb-1.5">
-                <FileCode className="h-4 w-4 text-primary" />
-              </div>
-              <p className="text-lg font-bold text-foreground">{fixedCount}</p>
-              <p className="text-xs text-muted-foreground">Files Fixed</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-secondary/20 p-3 text-center">
-              <div className="flex justify-center mb-1.5">
-                <GitCommit className="h-4 w-4 text-purple-500" />
-              </div>
-              <p className="text-lg font-bold text-foreground">{fixedCount}</p>
-              <p className="text-xs text-muted-foreground">Commits</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-secondary/20 p-3 text-center">
-              <div className="flex justify-center mb-1.5">
-                <Clock className="h-4 w-4 text-blue-500" />
-              </div>
-              <p className="text-lg font-bold text-foreground">
-                {timeTaken ? formatTime(timeTaken) : "--"}
-              </p>
-              <p className="text-xs text-muted-foreground">Time Taken</p>
-            </div>
-          </div>
-
-          {/* Branch & Commit Info */}
-          <div className="space-y-2">
-            {branchName && (
-              <div className="flex items-center justify-between rounded-lg border border-border/50 bg-secondary/20 px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-primary" />
-                  <span className="text-sm text-muted-foreground">Branch:</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="text-sm font-mono text-primary">{branchName}</code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(branchName)}
-                  >
-                    {copied ? (
-                      <Check className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <Copy className="h-3 w-3 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {commitHash && (
-              <div className="flex items-center justify-between rounded-lg border border-border/50 bg-secondary/20 px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <GitCommit className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm text-muted-foreground">Commit:</span>
-                </div>
-                <code className="text-sm font-mono text-foreground">{commitHash.slice(0, 8)}</code>
-              </div>
-            )}
-
-            {repoName && (
-              <div className="flex items-center justify-between rounded-lg border border-border/50 bg-secondary/20 px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <FileCode className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Repository:</span>
-                </div>
-                <span className="text-sm font-mono text-foreground">{repoName}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Fixes Summary */}
-          {fixes.length > 0 && (
-            <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Zap className="h-4 w-4 text-yellow-500" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Changes Included in PR
-                </p>
-              </div>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {fixes.filter((f) => f.status === "fixed").map((fix, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2 rounded-lg bg-background/50 px-3 py-2"
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <code className="text-xs font-mono text-foreground">{fix.file}</code>
-                        <Badge variant="outline" className="text-[9px] uppercase">
-                          {fix.bug_type}
-                        </Badge>
-                      </div>
-                      {fix.explanation?.changes_made && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {fix.explanation.changes_made}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {fixedFixes.length > 0 && (
+            <div className="space-y-2">
+              <SectionLabel>
+                Changes <span className="font-normal text-(--gb-text-3) tabular-nums">{fixedFixes.length}</span>
+              </SectionLabel>
+              <ChangesList fixes={fixedFixes} />
             </div>
           )}
-
         </div>
 
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel className="sm:order-1">
+        <div className="mt-6 flex flex-col-reverse gap-2 border-t border-(--gb-line) pt-6 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => onOpenChange(false)} className={button("secondary")}>
             Close
-          </AlertDialogCancel>
-          <Button
-            onClick={() => window.open(prUrl, "_blank")}
-            className="gap-2 sm:order-2"
-          >
-            <GitPullRequest className="h-4 w-4" />
-            View Pull Request
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        </AlertDialogFooter>
+          </button>
+          <a href={prUrl} target="_blank" rel="noopener noreferrer" className={button("primary")}>
+            <GitPullRequest strokeWidth={1.5} />
+            View pull request
+            <ExternalLink strokeWidth={1.5} />
+          </a>
+        </div>
       </AlertDialogContent>
     </AlertDialog>
   );

@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Header } from "@/components/header";
+import { GitHubIcon } from "@/components/dashboard/GitHubIcon";
+import { StatusMark } from "@/components/status-mark";
+import { button, card, field } from "@/components/gb";
 import {
   Dialog,
   DialogContent,
@@ -16,86 +17,200 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Zap,
-  Bot,
-  Shield,
-  BarChart3,
-  CheckCircle2,
   GitBranch,
-  ArrowRight,
-  Play,
-  Sparkles,
-  Link as LinkIcon,
-  Rocket,
+  Timer,
+  RefreshCw,
+  ScrollText,
 } from "lucide-react";
 
-function GitHubIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-    </svg>
-  );
-}
+const primaryButton = button("primary", "lg");
+const secondaryButton = button("secondary", "lg");
 
 const steps = [
   {
     number: "01",
-    title: "Connect Repository",
-    description: "Link your GitHub repository with a single click.",
-    icon: GitBranch,
+    title: "Connect a repository",
+    description: "Link a GitHub repository in one click",
   },
   {
     number: "02",
-    title: "Run Tests",
-    description: "GreenBranch automatically runs your test suite.",
-    icon: Play,
+    title: "Run the tests",
+    description: "GreenBranch runs your test suite in an isolated container",
   },
   {
     number: "03",
-    title: "Detect Issues",
-    description: "AI analyzes failures and identifies root causes.",
-    icon: Sparkles,
+    title: "Find the cause",
+    description: "The agent reads each failure and finds its root cause",
   },
   {
     number: "04",
-    title: "Apply Fixes",
-    description: "Automated fixes are committed to a new branch.",
-    icon: Zap,
+    title: "Apply a fix",
+    description: "Each fix is committed to a new branch",
   },
   {
     number: "05",
-    title: "Verify Success",
-    description: "Tests rerun until the pipeline turns green.",
-    icon: CheckCircle2,
+    title: "Verify",
+    description: "Tests rerun until the pipeline passes",
   },
 ];
 
 const features = [
   {
-    icon: Zap,
-    title: "Saves Developer Time",
+    icon: Timer,
+    title: "Less debugging by hand",
     description:
-      "Stop debugging CI failures manually. GreenBranch handles it autonomously.",
+      "The agent reads the failure output and writes the fix, so you review a change instead of chasing a stack trace",
   },
   {
-    icon: Bot,
-    title: "Fully Autonomous",
+    icon: RefreshCw,
+    title: "Runs on its own",
     description:
-      "No human intervention required. The agent works independently.",
+      "It fixes, reruns the tests and repeats until the suite passes, with no one watching",
   },
   {
-    icon: Shield,
-    title: "Safe Execution",
+    icon: GitBranch,
+    title: "Main stays untouched",
     description:
-      "All changes happen on a new branch. Your main branch stays protected.",
+      "Every fix is committed to a new branch with a clear message, and your main branch is never edited",
   },
   {
-    icon: BarChart3,
-    title: "Transparent Results",
+    icon: ScrollText,
+    title: "Every step logged",
     description:
-      "Every action is logged and displayed. Full visibility into all fixes.",
+      "Each test run, fix and commit is logged and shown on the dashboard",
   },
 ];
+
+// Sample run shown in the hero
+const TEST_COUNT = 42;
+const FAILED_AT = [9, 23, 35];
+const failingTests = [
+  { id: "test_invoice.py::test_rounds_to_cents", error: "AssertionError" },
+  { id: "test_tax.py::test_exempt_customer", error: "KeyError" },
+  { id: "test_dates.py::test_due_date_weekend", error: "AssertionError" },
+];
+const laterFixes = [
+  { file: "src/tax.py", message: "Read exemption from customer.tax_exempt" },
+  { file: "src/dates.py", message: "Move weekend due dates to Monday" },
+];
+
+function TestDots({ failed }: { failed: number[] }) {
+  return (
+    <p
+      aria-hidden
+      className="font-mono text-[12px] leading-5 break-all text-(--gb-pass)"
+    >
+      {Array.from({ length: TEST_COUNT }, (_, i) =>
+        failed.includes(i) ? (
+          <span key={i} className="text-(--gb-fail)">
+            F
+          </span>
+        ) : (
+          "."
+        )
+      )}
+    </p>
+  );
+}
+
+function RunPreview() {
+  return (
+    <div className={`${card} overflow-hidden shadow-(--gb-shadow)`}>
+      {/* Branch bar */}
+      <div className="flex h-12 items-center justify-between gap-4 border-b border-(--gb-line) px-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <GitBranch className="size-4 shrink-0 text-(--gb-text-3)" strokeWidth={1.5} />
+          <span className="truncate font-mono text-[13px] text-(--gb-text)">
+            greenbranch/fix-payments-api-1763971200
+          </span>
+        </div>
+        <span className="shrink-0 font-mono text-[12px] text-(--gb-text-3) tabular-nums">
+          run 2 of 5
+        </span>
+      </div>
+
+      <div className="space-y-6 p-5">
+        {/* Run 1 */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4 text-[13px]">
+            <span className="flex items-center gap-2 font-medium text-(--gb-text)">
+              <StatusMark status="failed" />
+              Run 1
+            </span>
+            <span className="font-mono text-[12px] text-(--gb-text-3) tabular-nums">
+              39 passed, <span className="text-(--gb-fail)">3 failed</span> in 4.3s
+            </span>
+          </div>
+          <TestDots failed={FAILED_AT} />
+          <ul className="space-y-1">
+            {failingTests.map((test) => (
+              <li
+                key={test.id}
+                className="flex h-7 items-center justify-between gap-4 font-mono text-[12px]"
+              >
+                <span className="truncate text-(--gb-text-2)">{test.id}</span>
+                <span className="hidden shrink-0 text-(--gb-text-3) sm:inline">
+                  {test.error}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Fixes */}
+        <div className="space-y-3 border-t border-(--gb-line) pt-5">
+          <div className="flex items-center justify-between gap-4 text-[13px]">
+            <span className="font-medium text-(--gb-text)">3 fixes</span>
+            <span className="font-mono text-[12px] text-(--gb-text-3)">
+              src/invoice.py
+            </span>
+          </div>
+          <div className="overflow-hidden rounded-[10px] bg-(--gb-raised) py-2 font-mono text-[12px] leading-6">
+            <div className="flex px-3 text-(--gb-text-3)">
+              <span className="w-8 shrink-0 tabular-nums">41</span>
+              <span className="whitespace-pre">  def line_total(qty, price):</span>
+            </div>
+            <div className="flex bg-(--gb-fail-soft) px-3 text-(--gb-fail)">
+              <span className="w-8 shrink-0 tabular-nums">42</span>
+              <span className="whitespace-pre">-     return round(qty * price, 1)</span>
+            </div>
+            <div className="flex bg-(--gb-pass-soft) px-3 text-(--gb-pass)">
+              <span className="w-8 shrink-0 tabular-nums">42</span>
+              <span className="whitespace-pre">+     return round(qty * price, 2)</span>
+            </div>
+          </div>
+          <ul className="space-y-1">
+            {laterFixes.map((fix) => (
+              <li
+                key={fix.file}
+                className="flex h-7 items-center justify-between gap-4 text-[13px]"
+              >
+                <span className="truncate text-(--gb-text-2)">{fix.message}</span>
+                <span className="hidden shrink-0 font-mono text-[12px] text-(--gb-text-3) sm:inline">
+                  {fix.file}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Run 2 */}
+        <div className="space-y-3 border-t border-(--gb-line) pt-5">
+          <div className="flex items-center justify-between gap-4 text-[13px]">
+            <span className="flex items-center gap-2 font-medium text-(--gb-text)">
+              <StatusMark status="passed" />
+              Run 2
+            </span>
+            <span className="font-mono text-[12px] text-(--gb-text-3) tabular-nums">
+              <span className="text-(--gb-pass)">42 passed</span> in 4.1s
+            </span>
+          </div>
+          <TestDots failed={[]} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -124,147 +239,102 @@ export default function Home() {
   const isFormValid = repoUrl.trim().length > 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background aurora-bg">
-      <Header variant="landing" />
+    <div className="flex min-h-screen flex-col bg-(--gb-bg) text-(--gb-text)">
+      <Header />
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative overflow-hidden">
-          {/* Animated background orbs */}
-          <div className="absolute inset-0 -z-10 overflow-hidden">
-            <div className="absolute left-1/4 top-1/4 h-[500px] w-[500px] rounded-full bg-primary/8 blur-[120px] animate-float-slow" />
-            <div className="absolute right-1/4 top-1/3 h-[400px] w-[400px] rounded-full bg-primary/5 blur-[100px] animate-float" />
-            <div className="absolute left-1/2 bottom-0 h-[300px] w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[80px]" />
+        <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16 lg:px-8 lg:py-24">
+          <div className="gb-rise">
+            <h1 className="text-[40px] leading-[1.05] font-medium tracking-[-0.02em] sm:text-[56px] lg:text-[64px] lg:tracking-[-0.03em]">
+              Failing tests, fixed and rerun until they pass
+            </h1>
+            <p className="mt-6 max-w-[36rem] text-lg leading-7 text-(--gb-text-2)">
+              GreenBranch runs your test suite, has an agent fix each failure
+              and verifies the fix. Every change lands on a new branch, so
+              main stays as it was.
+            </p>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className={primaryButton}
+              >
+                Run agent
+              </button>
+              <Link href="/signin" className={secondaryButton}>
+                <GitHubIcon className="size-4" />
+                Sign in with GitHub
+              </Link>
+            </div>
           </div>
 
-          <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 sm:py-40 lg:px-8">
-            <div className="mx-auto max-w-3xl text-center">
-              {/* Badge */}
-              <div className="mb-8 flex justify-center animate-fade-in-up">
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-primary/20 bg-primary/5 px-5 py-2 text-sm text-primary backdrop-blur-sm">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                  </span>
-                  Autonomous CI/CD Healing
-                </div>
-              </div>
-
-              {/* Headline */}
-              <h1 className="text-5xl font-bold tracking-tight sm:text-7xl animate-fade-in-up stagger-1" style={{ opacity: 0 }}>
-                <span className="text-foreground">Keep your CI pipelines</span>{" "}
-                <span className="gradient-text">green</span>
-              </h1>
-
-              {/* Subhead */}
-              <p className="mt-8 text-lg leading-8 text-muted-foreground/80 max-w-2xl mx-auto animate-fade-in-up stagger-2" style={{ opacity: 0 }}>
-                GreenBranch automatically detects, fixes, and verifies code
-                issues. Stop wasting time on broken builds — let AI heal your pipelines.
-              </p>
-
-              {/* CTA */}
-              <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row animate-fade-in-up stagger-3" style={{ opacity: 0 }}>
-                <Button
-                  size="lg"
-                  onClick={() => setIsModalOpen(true)}
-                  className="w-full gap-2.5 sm:w-auto text-base px-8 py-6 rounded-xl animate-pulse-glow"
-                >
-                  <Rocket className="h-5 w-5" />
-                  Run Agent
-                </Button>
-                <Link href="/signin">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="w-full gap-2.5 sm:w-auto text-base px-8 py-6 rounded-xl border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300"
-                  >
-                    <GitHubIcon className="h-5 w-5" />
-                    Sign in with GitHub
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Floating feature pills */}
-              <div className="mt-16 flex flex-wrap items-center justify-center gap-3 animate-fade-in-up stagger-4" style={{ opacity: 0 }}>
-                {["Auto Fix", "Zero Config", "Branch Safe", "Real-time Logs"].map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-border/50 bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:text-primary"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+          <div className="gb-rise gb-rise-delay">
+            <RunPreview />
           </div>
         </section>
 
         {/* How It Works Section */}
-        <section className="relative border-t border-border/50">
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.02] to-transparent" />
-          <div className="relative mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center mb-20">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-                <span className="text-foreground">How it </span>
-                <span className="gradient-text">works</span>
+        <section className="border-t border-(--gb-line)">
+          <div className="mx-auto max-w-7xl px-6 py-24 lg:px-8 lg:py-32">
+            <div className="max-w-2xl">
+              <h2 className="text-[32px] leading-tight font-medium tracking-[-0.02em] sm:text-[40px]">
+                How it works
               </h2>
-              <p className="mt-5 text-muted-foreground text-lg">
-                Five simple steps to automated CI healing
+              <p className="mt-4 text-lg text-(--gb-text-2)">
+                Five steps from a red build to a green branch
               </p>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-              {steps.map((step, index) => (
-                <div key={step.number} className="relative group">
-                  <div className="glass-card rounded-2xl p-6 text-center h-full">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 font-mono text-sm font-bold text-primary mb-5 transition-all duration-300 group-hover:scale-110 group-hover:bg-primary/15">
-                      <step.icon className="h-5 w-5" />
+            <ol className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-5 lg:gap-6">
+              {steps.map((step, index) => {
+                const isLast = index === steps.length - 1;
+                return (
+                  <li key={step.number} className="relative">
+                    <div className="flex h-5 items-center">
+                      <StatusMark status={isLast ? "passed" : "pending"} />
                     </div>
-                    <h3 className="text-base font-semibold text-foreground mb-2">
-                      {step.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
+                    {!isLast && (
+                      <span
+                        aria-hidden
+                        className="absolute top-2.5 left-7 -right-4 hidden h-px bg-(--gb-line-strong) lg:block"
+                      />
+                    )}
+                    <p className="mt-6 font-mono text-[12px] text-(--gb-text-3)">
+                      {step.number}
+                    </p>
+                    <h3 className="mt-2 text-base font-medium">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-(--gb-text-2)">
                       {step.description}
                     </p>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="absolute left-full top-1/2 hidden w-6 -translate-x-1/2 -translate-y-1/2 lg:flex items-center justify-center">
-                      <ArrowRight className="h-4 w-4 text-primary/30" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="relative border-t border-border/50">
-          <div className="mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center mb-20">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-                <span className="text-foreground">Why </span>
-                <span className="gradient-text">GreenBranch</span>
-                <span className="text-foreground">?</span>
+        <section className="border-t border-(--gb-line)">
+          <div className="mx-auto grid max-w-7xl gap-12 px-6 py-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16 lg:px-8 lg:py-32">
+            <div>
+              <h2 className="text-[32px] leading-tight font-medium tracking-[-0.02em] sm:text-[40px]">
+                Less time on red builds
               </h2>
-              <p className="mt-5 text-muted-foreground text-lg">
-                Built for developers who value their time
+              <p className="mt-4 text-lg text-(--gb-text-2)">
+                The debugging loop you would run by hand, run for you
               </p>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-x-12 sm:grid-cols-2">
               {features.map((feature) => (
                 <div
                   key={feature.title}
-                  className="glass-card group rounded-2xl p-7"
+                  className="border-t border-(--gb-line) py-6"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/15 transition-all duration-300 group-hover:scale-110 group-hover:bg-primary/15">
-                    <feature.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="mt-5 text-base font-semibold text-foreground">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                  <feature.icon className="size-[18px] text-(--gb-text-3)" strokeWidth={1.5} />
+                  <h3 className="mt-4 text-base font-medium">{feature.title}</h3>
+                  <p className="mt-2 text-[15px] leading-relaxed text-(--gb-text-2)">
                     {feature.description}
                   </p>
                 </div>
@@ -273,148 +343,82 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Trust Section */}
-        <section className="relative border-t border-border/50">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-primary/[0.02]" />
-          <div className="relative mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-3xl">
-              <div className="glass-card rounded-2xl p-10 glow-primary">
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                    <Shield className="h-5 w-5 text-primary" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-foreground">
-                    Safe by Design
-                  </h2>
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  {[
-                    {
-                      title: "Protected Main Branch",
-                      desc: "GreenBranch never edits your main branch directly",
-                    },
-                    {
-                      title: "Isolated Branches",
-                      desc: "All changes happen on a new dedicated branch",
-                    },
-                    {
-                      title: "Commit History",
-                      desc: "Every fix is committed with clear messages",
-                    },
-                    {
-                      title: "Full Audit Log",
-                      desc: "All actions are logged and visible on dashboard",
-                    },
-                  ].map((item) => (
-                    <div key={item.title} className="flex items-start gap-3.5 group">
-                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 transition-colors group-hover:bg-primary/20">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {item.desc}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* CTA Section */}
-        <section className="relative border-t border-border/50">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/2 bottom-0 h-[300px] w-[500px] -translate-x-1/2 rounded-full bg-primary/8 blur-[100px]" />
-          </div>
-          <div className="relative mx-auto max-w-7xl px-4 py-28 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-                <span className="text-foreground">Ready to go </span>
-                <span className="gradient-text">green</span>
-                <span className="text-foreground">?</span>
-              </h2>
-              <p className="mt-5 text-muted-foreground text-lg">
-                Connect your repository and let GreenBranch handle the rest.
-              </p>
-              <div className="mt-10">
-                <Link href="/signin">
-                  <Button size="lg" className="gap-2.5 text-base px-10 py-6 rounded-xl animate-pulse-glow">
-                    <GitHubIcon className="h-5 w-5" />
-                    Get Started
-                  </Button>
-                </Link>
-              </div>
+        <section className="border-t border-(--gb-line)">
+          <div className="mx-auto max-w-2xl px-6 py-24 text-center lg:py-32">
+            <h2 className="text-[32px] leading-tight font-medium tracking-[-0.02em] sm:text-[40px]">
+              Ready to go green?
+            </h2>
+            <p className="mt-4 text-lg text-(--gb-text-2)">
+              Sign in with GitHub and run the agent on one of your
+              repositories
+            </p>
+            <div className="mt-10">
+              <Link href="/signin" className={primaryButton}>
+                <GitHubIcon className="size-4" />
+                Get started
+              </Link>
             </div>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2.5">
-              <Image
-                src="/logo.png"
-                alt="GreenBranch"
-                width={24}
-                height={24}
-                className="h-6 w-6"
-              />
-              <span className="text-sm font-medium text-muted-foreground">
-                GreenBranch
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground/60">
-              Automatically detect, fix, and verify code issues to keep CI
-              pipelines green.
-            </p>
+      <footer className="border-t border-(--gb-line)">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/logo.png"
+              alt="GreenBranch"
+              width={20}
+              height={20}
+              className="size-5"
+            />
+            <span className="text-sm font-medium text-(--gb-text-2)">
+              GreenBranch
+            </span>
           </div>
+          <p className="text-sm text-(--gb-text-3)">
+            Detects, fixes and verifies failing tests to keep CI green
+          </p>
         </div>
       </footer>
 
       {/* Run Agent Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="glass-card border-border/50 sm:max-w-lg">
+        <DialogContent
+          className="rounded-2xl border-(--gb-line) bg-(--gb-card) p-6 text-(--gb-text) sm:max-w-lg"
+        >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <Rocket className="h-5 w-5 text-primary" />
-              Run GreenBranch Agent
-            </DialogTitle>
-            <DialogDescription>
-              Enter repository details to start autonomous CI/CD healing.
+            <DialogTitle className="text-xl font-medium">Run the agent</DialogTitle>
+            <DialogDescription className="text-(--gb-text-2)">
+              Paste a GitHub repository URL to clone it and run its tests
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 pt-4">
-            {/* Repository URL */}
+          <div className="space-y-6 pt-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                <LinkIcon className="h-3.5 w-3.5" /> GitHub Repository URL
+              <label htmlFor="repo-url" className="text-sm font-medium">
+                Repository URL
               </label>
-              <Input
+              <input
+                id="repo-url"
                 placeholder="https://github.com/username/repository"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
-                className="bg-secondary/30 font-mono text-sm"
+                className={`${field} h-10 font-mono`}
                 spellCheck={false}
               />
             </div>
 
-            {/* Submit Button */}
-            <Button
+            <button
+              type="button"
               onClick={handleRunAgent}
               disabled={!isFormValid}
-              className="w-full gap-2 rounded-xl py-5 transition-all duration-300 hover:shadow-[0_0_20px_rgba(74,222,128,0.2)]"
+              className={`${primaryButton} w-full`}
             >
-              <Play className="h-4 w-4" />
-              Analyze Repository
-            </Button>
+              Analyze repository
+            </button>
           </div>
         </DialogContent>
       </Dialog>
