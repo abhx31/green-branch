@@ -1,0 +1,81 @@
+# GreenBranch backends on one EC2 instance.
+#
+# Only Caddy is published (80/443). It terminates HTTPS for $API_DOMAIN and routes
+# /runner/* to server-ec2 and everything else (REST + WebSocket) to server-ai.
+# Settings and secrets come from .env next to this file (see .env.example).
+
+name: greenbranch
+
+services:
+  caddy:
+    image: caddy:2.8.4
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN must be set in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server-ai
+      - server-ec2
+
+  server-ai:
+    build: ../../server-ai
+    restart: always
+    env_file: .env
+    environment:
+      SERVER_EC2_AGENT_URL: http://server-ec2:8001
+      SERVER_EC2_AGENT_API_KEY: ${EC2_AGENT_API_KEY}
+      SERVER_UVICORN_WORKERS: "1"  # run tickets live in memory
+    depends_on:
+      - server-ec2
+
+  server-ec2:
+    build: ../../server-ec2
+    restart: always
+    env_file: .env
+    environment:
+      EC2_AGENT_REDIS_URL: redis://redis:6379/0
+      # Same path inside this container and on the host, so the executor
+      # containers (which mount the host path at /repos) see the same clones
+      EC2_AGENT_REPOS_BASE_PATH: /home/ubuntu/repos
+      GIT_AUTHOR_NAME: GreenBranch
+      GIT_AUTHOR_EMAIL: greenbranch@users.noreply.github.com
+      GIT_COMMITTER_NAME: GreenBranch
+      GIT_COMMITTER_EMAIL: greenbranch@users.noreply.github.com
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/ubuntu/repos:/home/ubuntu/repos
+    depends_on:
+      - redis
+      - python-executor
+      - node-executor
+
+  redis:
+    image: redis:7.4-alpine
+    restart: always
+
+  # Long-running containers the repositories' install and test commands run in
+  python-executor:
+    image: python:3.11
+    container_name: python-executor
+    restart: always
+    command: sleep infinity
+    volumes:
+      - /home/ubuntu/repos:/repos
+
+  node-executor:
+    image: node:20
+    container_name: node-executor
+    restart: always
+    command: sleep infinity
+    volumes:
+      - /home/ubuntu/repos:/repos
+
+volumes:
+  caddy_data:
+  caddy_config:

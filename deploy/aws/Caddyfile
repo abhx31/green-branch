@@ -1,0 +1,12 @@
+# HTTPS for the API domain; Caddy gets and renews the Let's Encrypt certificate itself.
+{$API_DOMAIN} {
+	# Called by the frontend's /api/sessions route: /runner/api/v1/... → server-ec2 /api/v1/...
+	handle_path /runner/* {
+		reverse_proxy server-ec2:8001
+	}
+
+	# Everything else, including the /api/v1/agent/ws WebSocket
+	handle {
+		reverse_proxy server-ai:8000
+	}
+}

@@ -1,0 +1,79 @@
+name: Deploy backends to AWS EC2
+
+# server-ai, server-ec2, Redis, the executor containers and Caddy run with Docker
+# Compose on one EC2 instance. See deploy/aws/README.md for the one-time setup and
+# the secrets this workflow needs: EC2_HOST, EC2_SSH_KEY, EC2_KNOWN_HOSTS.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server-ai/**'
+      - 'server-ec2/**'
+      - 'deploy/aws/**'
+      - '.github/workflows/aws-deploy.yaml'
+  workflow_dispatch:
+
+# Never run two deploys against the instance at once
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [server-ai, server-ec2]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      # Nothing reaches the instance unless both backends install and import cleanly
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Compile and import the app
+        run: |
+          uv run python -m compileall -q src
+          uv run python -c "from src.app.app import init_app; init_app()"
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          test -n "$EC2_HOST" && test -n "$EC2_SSH_KEY" && test -n "$EC2_KNOWN_HOSTS" \
+            || { echo "Missing EC2_HOST, EC2_SSH_KEY or EC2_KNOWN_HOSTS secret"; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host ec2
+            HostName $EC2_HOST
+            User ubuntu
+            IdentityFile ~/.ssh/ec2_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Upload release
+        run: |
+          tar -czf - server-ai server-ec2 deploy/aws \
+            | ssh ec2 "mkdir -p ~/greenbranch/releases/${GITHUB_SHA} && tar -xzf - -C ~/greenbranch/releases/${GITHUB_SHA}"
+
+      - name: Deploy
+        run: ssh ec2 "bash ~/greenbranch/releases/${GITHUB_SHA}/deploy/aws/deploy.sh ${GITHUB_SHA}"
