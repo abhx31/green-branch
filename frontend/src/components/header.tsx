@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,6 +18,7 @@ import { button, focusRing } from "@/components/gb";
 
 export function Header() {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const initial = session?.user?.name?.charAt(0).toUpperCase() || "U";
 
   return (
@@ -62,7 +64,7 @@ export function Header() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
+          ) : pathname === "/signin" ? null : (
             <Link href="/signin" className={button("ghost", "md")}>
               <GitHubIcon className="size-4" />
               Sign in
