@@ -21,6 +21,7 @@ from src.runner.fix_engine import (
     explain_fix,
     generate_fix,
     is_resolved,
+    passed_test_count,
     pick_error,
     revert_fix,
 )
@@ -88,6 +89,7 @@ class _StreamingPipeline:
         self.passed = False
         self.errors: list[dict[str, Any]] = []
         self.raw_output = ""
+        self.passed_tests = 0
         self.total_failures = 0
         self.attempts: dict[str, int] = {}
         self.fixes_applied: list[dict[str, Any]] = []
@@ -174,10 +176,13 @@ class _StreamingPipeline:
 
             # Verify the fix applied in the previous iteration
             reverted = False
+            passed_tests = passed_test_count(raw_output)
             if pending:
                 attempt, entry = pending
                 pending = None
-                if is_resolved(attempt, errors, passed):
+                if passed_tests < self.passed_tests and not passed:
+                    await self.log(f"  ✗ Fewer tests pass than before ({self.passed_tests} → {passed_tests})")
+                if is_resolved(attempt, errors, passed, passed_before=self.passed_tests, passed_after=passed_tests):
                     await self._accept(attempt, entry)
                 else:
                     await self._reject(attempt, entry)
@@ -201,6 +206,7 @@ class _StreamingPipeline:
             # A rejected fix was reverted, so the repo is back to the previous run's state
             if not reverted:
                 self.errors, self.passed, self.raw_output = errors, passed, raw_output
+                self.passed_tests = passed_tests
 
             if self.passed:
                 await self.log("")

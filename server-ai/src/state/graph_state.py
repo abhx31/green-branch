@@ -19,6 +19,7 @@ class GraphState(TypedDict):
     test_command: str | None
     errors: list[dict[str, Any]]
     passed: bool
+    passed_tests: int                        # passing tests in the last kept run
 
     # ── Iteration control ──
     current_error: dict[str, Any] | None

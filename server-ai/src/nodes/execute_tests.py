@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 
 from src.state.graph_state import GraphState
-from src.runner.fix_engine import commit_message_for, is_resolved, revert_fix
+from src.runner.fix_engine import commit_message_for, is_resolved, passed_test_count, revert_fix
 from src.services.ec2_client import EC2Client
 
 logger = logging.getLogger("greenbranch")
@@ -54,11 +54,12 @@ async def execute_tests(state: GraphState) -> GraphState:
 
     # Verify the fix written by the previous fix_code step
     reverted = False
+    passed_tests = passed_test_count(result.get("raw_output", ""))
     pending = state.get("pending_fix")
     if pending:
         attempt = pending["attempt"]
         entry = state["fixes_applied"][pending["index"]]
-        if is_resolved(attempt, errors, passed):
+        if is_resolved(attempt, errors, passed, passed_before=state.get("passed_tests", 0), passed_after=passed_tests):
             entry["status"] = "fixed"
             entry["commit_message"] = commit_message_for(attempt)
             fixed_files: list[str] = state.get("fixed_files", [])
@@ -80,6 +81,7 @@ async def execute_tests(state: GraphState) -> GraphState:
     if not reverted:
         state["errors"] = errors
         state["passed"] = passed
+        state["passed_tests"] = passed_tests
         state["raw_output"] = result.get("raw_output", "")
 
     # Record CI timeline entry

@@ -10,6 +10,7 @@ file when it didn't, so failed attempts never leak into later commits.
 import asyncio
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
@@ -57,11 +58,41 @@ def pick_error(errors: list[dict[str, Any]], attempts: dict[str, int]) -> dict[s
     return None
 
 
-def is_resolved(attempt: FixAttempt, errors: list[dict[str, Any]], passed: bool) -> bool:
-    """True if the test run after *attempt* no longer reports the targeted error."""
+def is_resolved(
+    attempt: FixAttempt,
+    errors: list[dict[str, Any]],
+    passed: bool,
+    *,
+    passed_before: int = 0,
+    passed_after: int = 0,
+) -> bool:
+    """True if the test run after *attempt* no longer reports the targeted error.
+
+    A fix after which fewer tests pass is never resolved: a file that no longer
+    loads makes its suite fail to run, which also hides the targeted error.
+    """
     if passed:
         return True
+    if passed_after < passed_before:
+        return False
     return error_key(attempt.error) not in {error_key(e) for e in errors}
+
+
+# Jest "Tests: 1 failed, 4 passed, 5 total" / Vitest "Tests  1 failed | 4 passed (5)"
+_JS_SUMMARY_RE = re.compile(r"^\s*Tests:?\s+(.*)$", re.MULTILINE)
+# pytest "===== 1 failed, 4 passed in 0.12s ====="
+_PYTEST_SUMMARY_RE = re.compile(r"^=+ (.*) in [\d.]+s\b.*=+\s*$", re.MULTILINE)
+_PASSED_RE = re.compile(r"(\d+) passed")
+
+
+def passed_test_count(raw_output: str) -> int:
+    """Number of passing tests in the run's final summary line (0 if there is none)."""
+    summaries = list(_JS_SUMMARY_RE.finditer(raw_output)) + list(_PYTEST_SUMMARY_RE.finditer(raw_output))
+    if not summaries:
+        return 0
+    last = max(summaries, key=lambda m: m.start())
+    match = _PASSED_RE.search(last.group(1))
+    return int(match.group(1)) if match else 0
 
 
 # ── File helpers ────────────────────────────────────────────────────────────
@@ -136,6 +167,7 @@ def _build_prompt(
         "You must fix the IMPLEMENTATION file and return its full corrected contents.\n"
         "Output EXACTLY one line first: TARGET_FILE: <path/to/impl/file>\n"
         "then output the complete corrected implementation file contents on the next lines.\n"
+        "Return that ONE file only, even if the test output shows failures in other files.\n"
         "Do NOT modify the test file. Do NOT wrap code in markdown fences."
         if is_test_file(file_path) else ""
     )
@@ -162,7 +194,21 @@ Full Trace: {error.get('full_trace') or 'None'}
 === FULL TEST OUTPUT ===
 {output_block}
 
-Return ONLY the complete corrected file contents with no explanation, no markdown fences, no commentary."""
+Fix ONLY the error under ERROR INFO; other failures in the test output are fixed separately.
+Return ONLY the complete corrected contents of ONE file with no explanation, no markdown fences, no commentary."""
+
+
+# A "TARGET_FILE: path" line, tolerating markdown decoration such as **TARGET_FILE:** `path`
+_TARGET_FILE_RE = re.compile(r"^[*`\s]*TARGET_FILE:[*`\s]*([\w./@-]+?)[*`\s]*$", re.MULTILINE)
+
+
+def split_target_files(answer: str) -> list[tuple[str, str]]:
+    """Split an LLM answer into (path, contents) per TARGET_FILE line; [] if it has none."""
+    matches = list(_TARGET_FILE_RE.finditer(answer))
+    return [
+        (m.group(1), clean_code_fences(answer[m.end():matches[i + 1].start() if i + 1 < len(matches) else len(answer)]))
+        for i, m in enumerate(matches)
+    ]
 
 
 # ── Generate / apply / revert ───────────────────────────────────────────────
@@ -220,15 +266,21 @@ async def generate_fix(
     llm_ms = (time.monotonic() - t0) * 1000
     await log(f"  AI response received ({len(raw_fixed)} chars, {llm_ms:.0f}ms)")
 
-    # Test-file errors may redirect the fix to the implementation file
+    # TARGET_FILE lines redirect the fix (e.g. from a test file to its implementation).
+    # The model sometimes returns extra files for other failures: keep only the file for
+    # this error, so another file's code is never written into it.
     target_file, fixed_code = file_path, raw_fixed
-    first_line, _, rest = raw_fixed.partition("\n")
-    if test_file and first_line.strip().startswith("TARGET_FILE:"):
-        suggested = _repo_relative(first_line.strip().removeprefix("TARGET_FILE:").strip(), session_id)
-        if suggested:
-            target_file = suggested
-            fixed_code = clean_code_fences(rest)
+    sections = [(_repo_relative(path, session_id), code) for path, code in split_target_files(raw_fixed)]
+    if sections:
+        preferred = [p for p in (impl_path, file_path) if p]
+        target_file, fixed_code = next(
+            (s for p in preferred for s in sections if s[0] == p), sections[0]
+        )
+        if target_file != file_path:
             await log(f"  Redirected fix → {target_file}")
+        skipped = [path for path, _ in sections if path != target_file]
+        if skipped:
+            await log(f"  Ignored {len(skipped)} other file(s) in the AI's answer: {', '.join(skipped)}")
 
     if not fixed_code.strip():
         raise FixGenerationError("AI returned an empty fix")

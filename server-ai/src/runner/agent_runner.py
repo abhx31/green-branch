@@ -73,6 +73,7 @@ async def run_agent(
         "test_command": test_command,
         "errors": [],
         "passed": False,
+        "passed_tests": 0,
         "current_error": None,
         "iteration": 0,
         "max_iterations": max_iterations or api_settings.max_iterations,
