@@ -13,6 +13,22 @@ from src.core.exceptions import DockerExecutionError, UnsupportedLanguageError
 
 logger = logging.getLogger("ec2_agent")
 
+# Every repository gets its own virtualenv inside its clone. All Python repos run in the
+# same python-executor container, so without it one repo's installed packages (and their
+# versions) would be seen by every later repo. It lives in the session directory, so it
+# is reused across a run's test runs and deleted with the session. Commits only stage the
+# fixed file, and pytest skips directories that contain a virtualenv.
+PYTHON_VENV_DIR = ".greenbranch-venv"
+
+
+def _in_python_venv(command: str) -> str:
+    """Wrap *command* so it runs in the repo's own virtualenv, creating it on first use."""
+    venv = PYTHON_VENV_DIR
+    return (
+        f"if [ ! -x {venv}/bin/python ]; then python -m venv {venv} || exit 1; fi; "
+        f". {venv}/bin/activate && {command}"
+    )
+
 
 class DockerService:
     """Execute commands in pre-running Docker containers."""
@@ -25,7 +41,7 @@ class DockerService:
 
     # Map language → dependency install command
     INSTALL_COMMANDS: dict[str, str] = {
-        "python": "pip install -r requirements.txt 2>&1 && pip install pytest 2>&1",
+        "python": "{ if [ -f requirements.txt ]; then pip install -r requirements.txt; fi && pip install pytest; } 2>&1",
         "nodejs": "npm install 2>&1",
     }
 
@@ -136,6 +152,8 @@ class DockerService:
         """
         container_name = self.get_container_name(language)
         container = self.docker_manager.get_container(container_name)
+        if language == "python":
+            command = _in_python_venv(command)
 
         logger.info(f"Executing in {container_name} ({workdir}): {command[:100]}...")
 
@@ -173,6 +191,8 @@ class DockerService:
 
         container_name = self.get_container_name(language)
         container = self.docker_manager.get_container(container_name)
+        if language == "python":
+            command = _in_python_venv(command)
 
         logger.info(f"[STREAM] Executing in {container_name} ({workdir}): {command[:100]}...")
 
@@ -260,15 +280,7 @@ class DockerService:
         Returns:
             Tuple of (exit_code, output_string)
         """
-        if custom_command:
-            install_cmd = custom_command + " 2>&1"
-            logger.info(f"Using custom install command: {install_cmd[:100]}")
-        else:
-            install_cmd = self.INSTALL_COMMANDS.get(language)
-            if install_cmd is None:
-                raise UnsupportedLanguageError(f"No install command for '{language}'")
-            logger.info(f"Using default install for {language}")
-
+        install_cmd = self._install_command(language, custom_command)
         logger.info(f"Installing dependencies at {repo_path}")
         return self.exec_command(language, install_cmd, repo_path)
 
@@ -312,11 +324,27 @@ class DockerService:
         logger.info(f"Using default {label} for {language}")
         return cmd
 
+    def _install_command(self, language: str, custom_command: str | None) -> str:
+        """Install command for *language*; for Python it also makes sure pytest is in the venv.
+
+        Each repo starts from an empty virtualenv, so a custom command such as
+        ``pip install -r requirements.txt`` would otherwise leave pytest missing.
+        The custom command's own exit code is kept.
+        """
+        cmd = self._resolve_command(language, custom_command, self.INSTALL_COMMANDS, "install")
+        if language == "python" and custom_command:
+            cmd = (
+                f"{cmd}; status=$?; "
+                "python -m pytest --version >/dev/null 2>&1 || pip install pytest 2>&1; "
+                "exit $status"
+            )
+        return cmd
+
     def install_dependencies_streaming(
         self, language: str, repo_path: str, custom_command: str | None = None
     ) -> Generator[str, None, tuple[int, str]]:
         """Install dependencies, yielding output lines in real-time."""
-        cmd = self._resolve_command(language, custom_command, self.INSTALL_COMMANDS, "install")
+        cmd = self._install_command(language, custom_command)
         return self.exec_command_streaming(language, cmd, repo_path)
 
     def run_tests_streaming(
