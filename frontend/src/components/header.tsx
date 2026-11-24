@@ -56,7 +56,12 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onSelect={async () => {
+                    // Clear the session without NextAuth's redirect, which goes to NEXTAUTH_URL and
+                    // can land on another domain; then reload this site so no page keeps the old session
+                    await signOut({ redirect: false });
+                    window.location.assign("/");
+                  }}
                   className="h-8 gap-2 rounded-lg px-3 text-sm"
                 >
                   <LogOut className="size-4 text-(--gb-text-3)" strokeWidth={1.5} />

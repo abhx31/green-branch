@@ -29,11 +29,13 @@ def _parse_pytest_output(output: str) -> list[TestError]:
 
     for i, line in enumerate(lines):
         # Match: FAILED path/to/test.py::test_name - ErrorType: message
-        match = re.match(r"FAILED\s+(.+?)::(\S+)\s*[-–]\s*(.*)", line)
+        # pytest drops " - message" when the line would be wider than the terminal
+        # (long test names), so the message is optional and read from the traceback instead
+        match = re.match(r"FAILED\s+(.+?)::(\S+)(?:\s+[-–]\s+(.*))?\s*$", line)
         if match:
             file_path = match.group(1)
             test_name = match.group(2)
-            message = match.group(3).strip()
+            message = (match.group(3) or "").strip() or _pytest_failure_message(lines, test_name)
 
             error_type = _classify_error(message)
             line_num = _extract_line_number(lines, i, file_path)
@@ -145,6 +147,22 @@ def _extract_line_from_trace(lines: list[str], current_idx: int) -> int | None:
         if match:
             return int(match.group(1))
     return None
+
+
+def _pytest_failure_message(lines: list[str], test_name: str) -> str:
+    """First "E   …" line of *test_name*'s section in the failure report ("____ test_name ____")."""
+    name = test_name.split("::")[-1]
+    header = re.compile(rf"^_+ (?:\S+\.)?{re.escape(name)} _+$")
+    start = next((i for i, line in enumerate(lines) if header.match(line.strip())), None)
+    if start is None:
+        return "test failed"
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if re.match(r"^_+ \S+ _+$", stripped) or stripped.startswith("="):
+            break  # next test's section, or the summary
+        if stripped.startswith("E "):
+            return stripped.removeprefix("E").strip()
+    return "test failed"
 
 
 def _find_file_in_context(lines: list[str], current_idx: int) -> str | None:

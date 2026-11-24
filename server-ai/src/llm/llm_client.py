@@ -5,7 +5,7 @@ import logging
 from groq import Groq
 
 from src.app.config import api_settings
-from src.core.exceptions import LLMError
+from src.core.exceptions import FixGenerationError, LLMError
 
 logger = logging.getLogger("greenbranch")
 
@@ -77,16 +77,26 @@ def ask_llm(prompt: str) -> str:
         )
         elapsed = (_time.monotonic() - t0) * 1000
 
-        content = response.choices[0].message.content
+        choice = response.choices[0]
+        content = choice.message.content or ""
         usage = response.usage
         logger.info("\n" + "-"*60)
         logger.info(f"[LLM-RES] Groq response ({elapsed:.0f}ms)")
         logger.info(f"[LLM-RES] usage: prompt_tokens={usage.prompt_tokens}  completion_tokens={usage.completion_tokens}  total={usage.total_tokens}")
         logger.info(f"[LLM-RES] OUTPUT ({len(content)} chars):\n{content[:1000]}{'...<truncated>' if len(content) > 1000 else ''}")
         logger.info("-"*60)
+
+        # A cut-off or empty answer is a failed attempt, not an unavailable model: the
+        # caller should move on to its next attempt instead of stopping the run
+        if choice.finish_reason == "length":
+            raise FixGenerationError(
+                f"The AI's answer was cut off at {api_settings.llm_max_tokens} tokens, so it can't be used"
+            )
+        if not content.strip():
+            raise FixGenerationError("The AI returned an empty answer")
         return _clean_output(content)
 
-    except LLMError:
+    except (LLMError, FixGenerationError):
         raise
     except Exception as e:
         logger.error(f"[LLM-ERR] LLM call failed: {e}")

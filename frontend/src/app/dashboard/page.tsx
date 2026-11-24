@@ -28,6 +28,7 @@ export default function Dashboard() {
 
   const [repos, setRepos] = useState<Repo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reposError, setReposError] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -101,8 +102,19 @@ export default function Dashboard() {
     if (!session) return;
     axios
       .get<Repo[]>("/api/github/repos")
-      .then(({ data }) => setRepos(Array.isArray(data) ? data : []))
-      .catch(() => setRepos([]))
+      .then(({ data }) => {
+        setRepos(Array.isArray(data) ? data : []);
+        setReposError(null);
+      })
+      .catch((err) => {
+        setRepos([]);
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          setReposError("Your GitHub sign-in has expired. Sign out and sign in again to load your repositories.");
+        } else {
+          const detail = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+          setReposError(`Could not load your repositories${detail ? `: ${detail}` : ""}. You can still paste a repository URL.`);
+        }
+      })
       .finally(() => setLoading(false));
   }, [session]);
 
@@ -253,7 +265,10 @@ export default function Dashboard() {
       });
       runId = data.run_id;
     } catch (err) {
-      const msg = axios.isAxiosError(err) ? (err.response?.data?.detail ?? err.message) : "Could not start the run.";
+      const timedOut = axios.isAxiosError(err) && !err.response && (err.code === "ECONNABORTED" || err.code === "ETIMEDOUT");
+      const msg = timedOut
+        ? "The GreenBranch server took too long to respond. It may be busy or restarting — please try again in a minute."
+        : axios.isAxiosError(err) ? (err.response?.data?.detail ?? err.message) : "Could not start the run.";
       setErrorMessage(String(msg));
       setFailedStep("executing");
       setPhase("failed");
@@ -451,6 +466,10 @@ export default function Dashboard() {
                           <RepoCardSkeleton />
                         </div>
                       ))
+                    ) : reposError ? (
+                      <p role="alert" className="py-12 text-center text-sm text-(--gb-fail) sm:col-span-2">
+                        {reposError}
+                      </p>
                     ) : filteredRepos.length === 0 ? (
                       <p className="py-12 text-center text-sm text-(--gb-text-2) sm:col-span-2">
                         {searchQuery ? "No repositories match your search" : "No repositories found"}
